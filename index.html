@@ -23,7 +23,7 @@
         body {
             background: radial-gradient(circle at 50% 0%, #1e0a32, #05000a 80%);
             color: var(--text-main);
-            height: 100vh;
+            height: 100dvh; /* Динамический замер высоты под мобилки */
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -83,10 +83,12 @@
             padding: 12px 15px; border-radius: 12px; cursor: pointer;
             background: rgba(255, 255, 255, 0.03); border: 1px solid transparent;
             font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            transition: 0.2s;
+            transition: 0.2s; display: flex; justify-content: space-between; align-items: center;
+            -webkit-touch-callout: none; /* Отключаем системное меню на iOS */
         }
         .chat-item:hover { background: rgba(255, 255, 255, 0.08); }
         .chat-item.active { background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.4); }
+        .chat-pin-icon { font-size: 12px; margin-left: 5px; opacity: 0.8; }
 
         .account-btn {
             padding: 20px; border-top: 1px solid var(--glass-border);
@@ -110,16 +112,18 @@
         .message {
             max-width: 85%; padding: 16px 20px; border-radius: 22px;
             line-height: 1.5; font-size: 15.5px;
-            user-select: text;
-            -webkit-user-select: text;
+            user-select: text; -webkit-user-select: text;
             word-break: break-word;
         }
-        .message img { max-width: 100%; border-radius: 12px; margin-top: 10px; display: block; }
+        .message img { max-width: 100%; border-radius: 12px; margin-top: 10px; display: block; border: 1px solid var(--glass-border); }
         .ai { align-self: flex-start; background: rgba(30, 10, 50, 0.5); border-bottom-left-radius: 4px; border: 1px solid var(--glass-border); }
         .user { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 4px; }
 
         /* === ВВОД === */
-        #input-area { padding: 15px; border-top: 1px solid var(--glass-border); z-index: 5; }
+        #input-area { 
+            padding: 15px 15px calc(15px + env(safe-area-inset-bottom)); /* Фикс наплыва системных панелей */
+            border-top: 1px solid var(--glass-border); z-index: 5; 
+        }
         .input-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
         
         textarea {
@@ -137,14 +141,16 @@
         }
         .send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
 
-        /* TOGGLE NSFW */
-        .controls { display: flex; justify-content: space-between; align-items: center; padding: 0 5px; }
-        .nsfw-toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted); }
-        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        /* ПАНЕЛЬ ПЕРЕКЛЮЧАТЕЛЕЙ */
+        .controls { display: flex; justify-content: space-between; align-items: center; padding: 0 5px; gap: 10px; }
+        .toggles-group { display: flex; gap: 15px; align-items: center; }
+        .nsfw-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.1); transition: .4s; border-radius: 22px; }
         .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background: #d946ef; }
+        input:checked + .slider { background: #8b5cf6; }
+        input:checked + .slider.art-slider { background: #d946ef; }
         input:checked + .slider:before { transform: translateX(18px); }
 
         /* MARKDOWN СТИЛИ */
@@ -157,15 +163,18 @@
         .code-header button:hover { color: #fff; }
         .code-wrapper pre { padding: 15px; overflow-x: auto; font-family: monospace; font-size: 14px; color: #e2e8f0; }
 
-        /* МОДАЛКА АККАУНТА */
+        /* МОДАЛКИ ГЛУБОКИЕ */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; pointer-events: none; transition: 0.3s; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         .modal { width: 320px; padding: 25px; border-radius: 20px; display: flex; flex-direction: column; gap: 15px; }
         .modal input, .modal select { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; padding: 12px; border-radius: 12px; outline: none; font-size: 15px; }
         .modal select option { background: #1a0b2e; color: #fff; }
         .modal select:disabled { opacity: 0.5; cursor: not-allowed; }
-        .modal button { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; }
+        .modal button { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .modal button:hover { opacity: 0.9; }
         .modal button.close { background: transparent; border: 1px solid rgba(255,255,255,0.2); }
+        .modal button.danger { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #f8fafc; }
+        .modal button.danger:hover { background: rgba(239, 68, 68, 0.4); }
     </style>
 </head>
 <body>
@@ -206,12 +215,21 @@
             </button>
         </div>
         <div class="controls">
-            <div class="nsfw-toggle">
-                <label class="switch">
-                    <input type="checkbox" id="nsfwToggle">
-                    <span class="slider"></span>
-                </label>
-                <span>NSFW-режим</span>
+            <div class="toggles-group">
+                <div class="nsfw-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="nsfwToggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span>NSFW</span>
+                </div>
+                <div class="nsfw-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="artModeToggle">
+                        <span class="slider art-slider"></span>
+                    </label>
+                    <span style="color: #d946ef; font-weight: 500;">Арт-режим</span>
+                </div>
             </div>
             <span id="model-indicator" style="font-size: 12px; color: var(--text-muted);">Модель: Auto</span>
         </div>
@@ -237,10 +255,19 @@
         </div>
     </div>
 
+    <div id="context-modal" class="modal-overlay" onclick="closeContextModal()">
+        <div class="modal glass" onclick="event.stopPropagation()">
+            <h3 id="context-chat-title" style="font-size: 15px; color: var(--text-muted); text-align: center; margin-bottom: 5px;">Опции чата</h3>
+            <button onclick="handlePinChat()">📌 Закрепить / Открепить</button>
+            <button onclick="handleRenameChat()">✏️ Переименовать чат</button>
+            <button class="danger" onclick="handleDeleteChat()">🗑️ Удалить сессию</button>
+            <button class="close" onclick="closeContextModal()">Отмена</button>
+        </div>
+    </div>
+
     <script>
         const API_KEY = "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";
         
-        // ПОЛНЫЙ список моделей для каскада (Доступен всем при ошибках)
         const ALL_MODELS = [
             "google/gemini-2.5-flash:free",
             "meta-llama/llama-3-8b-instruct:free",
@@ -253,6 +280,9 @@
             settings: JSON.parse(localStorage.getItem('ouGPT_settings_v2')) || { name: 'Пользователь', isUltimate: false, selectedModel: 'auto' },
             activeChatId: null
         };
+
+        let selectedContextChatId = null; // Для хранения id долгого нажатия
+        let pressTimer = null;
 
         const elements = {
             chat: document.getElementById('chat'),
@@ -272,8 +302,7 @@
         }
 
         elements.prompt.addEventListener('input', function() {
-            this.style.height = '48px';
-            this.style.height = (this.scrollHeight) + 'px';
+            this.style.height = '48px'; this.style.height = (this.scrollHeight) + 'px';
         });
 
         elements.prompt.addEventListener('keydown', e => {
@@ -287,7 +316,7 @@
         }
 
         function createChatObject(firstMsg) {
-            const newChat = { id: Date.now().toString(), title: firstMsg.slice(0, 20) + "...", messages: [] };
+            const newChat = { id: Date.now().toString(), title: firstMsg.slice(0, 20) + "...", messages: [], pinned: false };
             appState.chats.unshift(newChat); appState.activeChatId = newChat.id;
             saveData(); return newChat;
         }
@@ -299,14 +328,89 @@
             renderChatList(); if(window.innerWidth < 768) toggleSidebar();
         }
 
+        // РЕНДЕР СПИСКА ЧАТОВ С СОРТИРОВКОЙ ПО ЗАКРЕПАМ И ХЕНДЛЕРАМИ НАЖАТИЯ
         function renderChatList() {
             elements.chatList.innerHTML = '';
-            appState.chats.forEach(chat => {
+            
+            // Сортируем: сначала закрепленные (`pinned: true`)
+            const sortedChats = [...appState.chats].sort((a, b) => (b.pinned || 0) - (a.pinned || 0));
+
+            sortedChats.forEach(chat => {
                 const div = document.createElement('div');
                 div.className = `chat-item ${chat.id === appState.activeChatId ? 'active' : ''}`;
-                div.textContent = chat.title; div.onclick = () => loadChat(chat.id);
+                
+                // Текст названия чата
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = chat.title;
+                titleSpan.style.overflow = "hidden";
+                titleSpan.style.textOverflow = "ellipsis";
+                div.appendChild(titleSpan);
+
+                // Если закреплен, вешаем иконку
+                if (chat.pinned) {
+                    const pinIcon = document.createElement('span');
+                    pinIcon.className = 'chat-pin-icon';
+                    pinIcon.textContent = '📌';
+                    div.appendChild(pinIcon);
+                }
+
+                // Переход в чат при обычном клике
+                div.onclick = () => loadChat(chat.id);
+
+                // ЛОГИКА КОНТЕКСТНОГО МЕНЮ (ПК и Мобилки)
+                div.oncontextmenu = (e) => { e.preventDefault(); openContextModal(chat.id); }; // Правая кнопка мыши
+
+                // Touch события для долгого удержания (мобилки)
+                div.addEventListener('touchstart', (e) => {
+                    pressTimer = setTimeout(() => { openContextModal(chat.id); }, 600); // 0.6 сек удержания
+                }, { passive: true });
+
+                div.addEventListener('touchend', () => { clearTimeout(pressTimer); });
+                div.addEventListener('touchmove', () => { clearTimeout(pressTimer); });
+
                 elements.chatList.appendChild(div);
             });
+        }
+
+        // УПРАВЛЕНИЕ КОНТЕКСТНЫМ МЕНЮ ЧАТОВ
+        function openContextModal(chatId) {
+            selectedContextChatId = chatId;
+            const chat = appState.chats.find(c => c.id === chatId);
+            document.getElementById('context-chat-title').textContent = `Чат: "${chat.title}"`;
+            document.getElementById('context-modal').classList.add('active');
+        }
+
+        function closeContextModal() { document.getElementById('context-modal').classList.remove('active'); }
+
+        function handlePinChat() {
+            const chat = appState.chats.find(c => c.id === selectedContextChatId);
+            if (chat) {
+                chat.pinned = !chat.pinned;
+                saveData();
+            }
+            closeContextModal();
+        }
+
+        function handleRenameChat() {
+            const chat = appState.chats.find(c => c.id === selectedContextChatId);
+            if (chat) {
+                const newTitle = prompt("Введите новое название сессии:", chat.title);
+                if (newTitle && newTitle.trim()) {
+                    chat.title = newTitle.trim();
+                    if (appState.activeChatId === chat.id) elements.chatTitle.textContent = chat.title;
+                    saveData();
+                }
+            }
+            closeContextModal();
+        }
+
+        function handleDeleteChat() {
+            if (confirm("Вы действительно хотите полностью удалить этот чат?")) {
+                appState.chats = appState.chats.filter(c => c.id !== selectedContextChatId);
+                if (appState.activeChatId === selectedContextChatId) startNewChat();
+                saveData();
+            }
+            closeContextModal();
         }
 
         function saveData() {
@@ -346,7 +450,7 @@
             });
         };
 
-        // Отправка сообщений и генерация артов
+        // ОТПРАВКА СООБЩЕНИЙ С ЖЕСТКИМ РАЗДЕЛЕНИЕМ ПО ТУМБЛЕРУ АРТОВ
         async function sendMessage() {
             const text = elements.prompt.value.trim();
             if (!text) return;
@@ -355,39 +459,38 @@
             if (isFirst) createChatObject(text);
             const currentChat = appState.chats.find(c => c.id === appState.activeChatId);
 
-            // КЛЮЧЕВОЙ ЧЕК НА ГЕНЕРАЦИЮ ИЗОБРАЖЕНИЙ
-            const isImageGen = /^(нарисуй|сгенерируй|создай( картинку)?|напиши картину|draw|generate( image)?)\b/i.test(text);
+            // ПРОВЕРКА ПО ФИЗИЧЕСКОМУ ТУМБЛЕРУ
+            const isArtMode = document.getElementById('artModeToggle').checked;
 
-            if (isImageGen) {
+            if (isArtMode) {
                 appendMessage(text, 'user'); currentChat.messages.push({ role: "user", content: text });
                 elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
-                // Если нет подписки — шлем юзера лесом
+                // Заглушка, если юзер лезет генерить картинку без Ultimate плана
                 if (!appState.settings.isUltimate) {
                     const aiDiv = document.createElement('div'); aiDiv.className = 'message ai';
-                    aiDiv.innerHTML = '❌ <b>Ошибка доступа:</b> Генерация картинок доступна только владельцам плана <b>ULTIMATE</b>. Пожалуйста, введи рабочий промокод в настройках аккаунта.';
+                    aiDiv.innerHTML = '❌ <b>Отказ в доступе:</b> Создание картинок доступно только на тарифном плане <b>ULTIMATE</b>.<br>Активируй рабочий промокод в настройках аккаунта.';
                     elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
                     currentChat.messages.push({ role: "assistant", content: "Ошибка доступа: требуется ULTIMATE план." });
                     saveData(); return;
                 }
 
-                // Если подписка есть — фигачим генерацию через Puter
-                const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; aiDiv.innerHTML = '<i>Генерирую изображение по вашему запросу... 🎨</i>';
+                // Генерация через API Puter.js
+                const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; aiDiv.innerHTML = '<i>Генерирую изображение по вашему промпту... 🎨</i>';
                 elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
 
                 try {
-                    const cleanPrompt = text.replace(/^(нарисуй|сгенерируй|создай( картинку)?|напиши картину|draw|generate( image)?)\s+/i, '').trim();
-                    const imgEl = await puter.txt2img(cleanPrompt || text);
+                    const imgEl = await puter.txt2img(text);
                     const mdImage = `![Art](${imgEl.src})`;
                     currentChat.messages.push({ role: "assistant", content: mdImage });
                     aiDiv.innerHTML = renderMarkdown(mdImage); saveData();
                 } catch (err) {
-                    aiDiv.innerHTML = '<span style="color:#ef4444;">Не удалось сгенерировать изображение через Puter API.</span>';
+                    aiDiv.innerHTML = '<span style="color:#ef4444;">Не удалось сгенерировать изображение. Попробуйте изменить промпт.</span>';
                 }
                 return;
             }
 
-            // ОБЫЧНЫЙ ТЕКСТОВЫЙ ЗАПРОС С УМНЫМ КАСКАДОМ ДЛЯ ВСЕХ
+            // ОБЫЧНЫЙ ТЕКСТОВЫЙ РЕЖИМ С КАСКАДОМ ОБХОДА ОШИБОК
             appendMessage(text, 'user'); currentChat.messages.push({ role: "user", content: text });
             elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
@@ -397,15 +500,12 @@
             const historyToSent = currentChat.messages.slice(-12);
             const fullMessages = [{ role: "system", content: getSystemPrompt() }, ...historyToSent];
 
-            // Сортировка каскада моделей
             let userModelChoice = appState.settings.selectedModel || 'auto';
             let modelsToTry = [];
 
             if (userModelChoice !== 'auto' && appState.settings.isUltimate) {
-                // Если юзер на Ultimate выбрал конкретную модель, ставим её первой, а остальные — в бэкап
                 modelsToTry = [userModelChoice, ...ALL_MODELS.filter(m => m !== userModelChoice)];
             } else {
-                // Все остальные юзеры идут по стандартному полному кругу автозамены
                 modelsToTry = [...ALL_MODELS];
             }
 
@@ -429,7 +529,7 @@
                         })
                     });
 
-                    if (!res.ok) continue; // Упал сервер/ошибка 429 -> прыгаем на следующую модель без матов на экране
+                    if (!res.ok) continue; // Сервер лежит -> падаем на следующую модель в пуле
                     
                     success = true; aiDiv.textContent = '';
                     const reader = res.body.getReader(); const decoder = new TextDecoder();
@@ -450,7 +550,7 @@
                             }
                         }
                     }
-                } catch (e) { console.error("Сбой модели, переключаюсь:", targetModel); }
+                } catch (e) { console.error("Сбой модели, иду на замену:", targetModel); }
             }
 
             if (!success) {
@@ -462,7 +562,7 @@
             aiDiv.innerHTML = renderMarkdown(responseText);
         }
 
-        // Обновление UI подписок и настроек
+        // НАСТРОЙКИ UI И ПОДПИСОК
         function updateUI() {
             document.getElementById('display-name').textContent = appState.settings.name;
             const modelSelect = document.getElementById('input-model');
@@ -471,14 +571,13 @@
                 document.getElementById('display-status').textContent = 'Ultimate План';
                 document.getElementById('display-status').style.color = '#d946ef';
                 document.getElementById('ultimate-badge').style.display = 'block';
-                modelSelect.disabled = false; // Открываем ручной выбор
+                modelSelect.disabled = false;
             } else {
                 document.getElementById('display-status').textContent = 'Базовый план';
                 document.getElementById('display-status').style.color = 'var(--text-muted)';
                 document.getElementById('ultimate-badge').style.display = 'none';
-                modelSelect.value = 'auto';
-                appState.settings.selectedModel = 'auto';
-                modelSelect.disabled = true; // Закрываем ручной выбор
+                modelSelect.value = 'auto'; appState.settings.selectedModel = 'auto';
+                modelSelect.disabled = true;
             }
             document.getElementById('model-indicator').textContent = `Модель: ${appState.settings.selectedModel === 'auto' ? 'Auto' : appState.settings.selectedModel.split('/').pop().replace(':free', '')}`;
         }
@@ -497,7 +596,7 @@
             
             if (document.getElementById('input-promo').value.trim() === 'OUGPTTEST') {
                 appState.settings.isUltimate = true;
-                alert('Ultimate активирован! Теперь тебе доступен ручной выбор моделей и генерация артов.');
+                alert('Ultimate активирован! Доступна ручная селекция моделей и генерация артов.');
             }
             
             if (appState.settings.isUltimate) {
