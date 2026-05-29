@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ouGPT Liquid Purple</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <style>
         /* === ПЕРЕМЕННЫЕ И БАЗА === */
         :root {
@@ -30,6 +31,29 @@
             -webkit-user-select: none;
             overscroll-behavior: none;
             touch-action: pan-y;
+        }
+
+        /* === КРАСИВЫЙ КАСТОМНЫЙ СКРОЛЛБАР === */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(20, 5, 35, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.3);
+            border-radius: 10px;
+            border: 1px solid rgba(168, 85, 247, 0.1);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(139, 92, 246, 0.6);
+        }
+
+        /* ДЛЯ FIREFOX */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(139, 92, 246, 0.3) rgba(20, 5, 35, 0.1);
         }
 
         .glass {
@@ -61,7 +85,6 @@
             z-index: 100;
             transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border-right: 1px solid var(--glass-border);
-            border-top: none; border-bottom: none; border-left: none;
         }
         #sidebar.active { left: 0; }
 
@@ -69,24 +92,16 @@
             padding: 20px; display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid var(--glass-border);
         }
-        .icon-btn {
-            background: transparent; border: none; color: white; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            padding: 8px; border-radius: 12px; transition: 0.2s;
-        }
-        .icon-btn:hover { background: rgba(255, 255, 255, 0.1); }
-
+        
         #chat-list { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
         .chat-item {
             padding: 12px 15px; border-radius: 12px; cursor: pointer;
             background: rgba(255, 255, 255, 0.03); border: 1px solid transparent;
             font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             transition: 0.2s; display: flex; justify-content: space-between; align-items: center;
-            -webkit-touch-callout: none;
         }
         .chat-item:hover { background: rgba(255, 255, 255, 0.08); }
         .chat-item.active { background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.4); }
-        .chat-pin-icon { font-size: 12px; margin-left: 5px; opacity: 0.8; }
 
         .account-btn {
             padding: 20px; border-top: 1px solid var(--glass-border);
@@ -117,7 +132,18 @@
         .ai { align-self: flex-start; background: rgba(30, 10, 50, 0.5); border-bottom-left-radius: 4px; border: 1px solid var(--glass-border); }
         .user { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 4px; }
 
-        /* === ПЕРЕЛИВАЮЩИЙСЯ ТЕКСТ (SHIMMER) === */
+        /* ОТОБРАЖЕНИЕ ВЛОЖЕНИЙ ВНУТРИ ЧАТА */
+        .msg-attachments {
+            display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .msg-file-badge {
+            background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 4px 8px; border-radius: 8px; font-size: 11px; display: flex; align-items: center; gap: 5px; color: #e2e8f0;
+        }
+        .msg-file-badge img { width: 24px; height: 24px; object-fit: cover; border-radius: 4px; margin: 0; border: none; }
+
+        /* === АНИМАЦИЯ SHIMMER === */
         @keyframes shimmer {
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
@@ -128,14 +154,10 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             animation: shimmer 1.8s infinite linear;
-            font-weight: 500;
-            font-style: italic;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            font-weight: 500; font-style: italic; display: flex; align-items: center; gap: 8px;
         }
 
-        /* === ВВОД И ВЛОЖЕНИЯ === */
+        /* === ВВОД И КНОПКИ === */
         #input-area { 
             padding: 15px 15px calc(15px + env(safe-area-inset-bottom));
             border-top: 1px solid var(--glass-border); z-index: 5; 
@@ -146,34 +168,24 @@
             flex: 1; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border);
             border-radius: 24px; padding: 12px 18px; color: #fff; font-size: 15.5px;
             resize: none; outline: none; height: 48px; max-height: 140px;
-            user-select: text; -webkit-user-select: text;
         }
-        textarea::placeholder { color: var(--text-muted); }
         
-        .send-btn {
-            background: var(--accent); color: white; border: none; width: 48px; height: 48px;
-            border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0; transition: 0.2s;
+        .send-btn, .clip-btn {
+            width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: none; transition: 0.2s;
         }
+        .send-btn { background: var(--accent); color: white; }
         .send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
-
-        .clip-btn {
-            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
-            color: #fff; width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s;
-        }
+        .clip-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); color: #fff; }
         .clip-btn:hover { background: rgba(255, 255, 255, 0.15); }
 
-        /* ПРЕВЬЮ ФАЙЛОВ */
         #file-previews { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; padding: 0 5px; }
         .preview-chip {
             background: rgba(139, 92, 246, 0.15); border: 1px solid var(--glass-border);
-            padding: 6px 12px; border-radius: 14px; font-size: 12px; display: flex;
-            align-items: center; gap: 8px; color: #e2e8f0;
+            padding: 6px 12px; border-radius: 14px; font-size: 12px; display: flex; align-items: center; gap: 8px;
         }
         .preview-chip span.remove { cursor: pointer; color: #ef4444; font-weight: bold; }
 
-        /* ПАНЕЛЬ ПЕРЕКЛЮЧАТЕЛЕЙ */
         .controls { display: flex; justify-content: space-between; align-items: center; padding: 0 5px; gap: 10px; }
         .toggles-group { display: flex; gap: 15px; align-items: center; }
         .nsfw-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
@@ -188,25 +200,19 @@
         /* MARKDOWN СТИЛИ */
         .message p { margin-bottom: 10px; }
         .message p:last-child { margin-bottom: 0; }
-        .message code:not(pre code) { background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #e2e8f0; }
         .code-wrapper { background: #090514; border-radius: 12px; margin: 10px 0; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
         .code-header { background: rgba(255,255,255,0.05); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #a1a1aa; }
-        .code-header button { background: transparent; border: none; color: #a1a1aa; cursor: pointer; display: flex; gap: 5px; align-items: center; font-size: 12px; }
-        .code-header button:hover { color: #fff; }
+        .code-header button { background: transparent; border: none; color: #a1a1aa; cursor: pointer; }
         .code-wrapper pre { padding: 15px; overflow-x: auto; font-family: monospace; font-size: 14px; color: #e2e8f0; }
 
         /* МОДАЛКИ */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; pointer-events: none; transition: 0.3s; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         .modal { width: 320px; padding: 25px; border-radius: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .modal input, .modal select { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; padding: 12px; border-radius: 12px; outline: none; font-size: 15px; }
-        .modal select option { background: #1a0b2e; color: #fff; }
-        .modal select:disabled { opacity: 0.5; cursor: not-allowed; }
-        .modal button { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.2s; }
-        .modal button:hover { opacity: 0.9; }
+        .modal input, .modal select { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; padding: 12px; border-radius: 12px; outline: none; }
+        .modal button { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; }
         .modal button.close { background: transparent; border: 1px solid rgba(255,255,255,0.2); }
-        .modal button.danger { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #f8fafc; }
-        .modal button.danger:hover { background: rgba(239, 68, 68, 0.4); }
+        .modal button.danger { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; }
     </style>
 </head>
 <body>
@@ -215,7 +221,7 @@
     <div id="sidebar" class="glass">
         <div class="sidebar-header">
             <strong style="font-size: 18px;">Сессии</strong>
-            <button class="icon-btn" onclick="startNewChat()" style="background: var(--accent);">
+            <button class="clip-btn" onclick="startNewChat()" style="background: var(--accent); width:36px; height:36px;">
                 <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
             </button>
         </div>
@@ -230,7 +236,7 @@
     </div>
 
     <div id="header" class="glass">
-        <button class="icon-btn" onclick="toggleSidebar()">
+        <button class="clip-btn" onclick="toggleSidebar()" style="width:36px; height:36px;">
             <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
         </button>
         <h3 id="current-chat-title" style="flex: 1; font-weight: 500; font-size: 16px;">Новый чат</h3>
@@ -245,7 +251,7 @@
             <button class="clip-btn" onclick="triggerFileInput()">
                 <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-3.31 2.69-6 6-6s6 2.69 6 6v10c0 1.1-.9 2-2 2s-2-.9-2-2V6h-2v9c0 2.21 1.79 4 4 4s4-1.79 4-4V5c0-4.42-3.58-8-8-8s-8 3.58-8 8v12.5c0 3.58 2.92 6.5 6.5 6.5s6.5-2.92 6.5-6.5V6h-2z"/></svg>
             </button>
-            <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(event)" multiple>
+            <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(event)" multiple accept=".txt,.js,.css,.html,.json,.docx,image/*">
             <textarea id="prompt" placeholder="Напиши сообщение..."></textarea>
             <button class="send-btn" onclick="sendMessage()">
                 <svg viewBox="0 0 24 24" style="transform: rotate(-90deg); margin-bottom: 2px;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -274,11 +280,10 @@
 
     <div id="account-modal" class="modal-overlay">
         <div class="modal glass">
-            <h3 style="margin-bottom: 5px;">Настройки</h3>
+            <h3>Настройки</h3>
             <input type="text" id="input-name" placeholder="Твое имя">
             <input type="text" id="input-promo" placeholder="Промокод">
-            
-            <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Выбор ядра (Только Ultimate):</label>
+            <input type="text" id="input-api-key" placeholder="OpenRouter API Key (необязательно)">
             <select id="input-model">
                 <option value="auto">🤖 ouGPT 1-Auto (Каскад нейросетей)</option>
                 <option value="google/gemini-2.5-flash:free">ouGPT 1-Flash</option>
@@ -286,7 +291,6 @@
                 <option value="deepseek/deepseek-chat">ouGPT 1-Deep</option>
                 <option value="nousresearch/hermes-3-llama-3.1-405b:free">ouGPT 1-Ultimate</option>
             </select>
-            
             <button onclick="saveSettings()">Сохранить</button>
             <button class="close" onclick="closeModal()">Отмена</button>
         </div>
@@ -294,24 +298,26 @@
 
     <div id="context-modal" class="modal-overlay" onclick="closeContextModal()">
         <div class="modal glass" onclick="event.stopPropagation()">
-            <h3 id="context-chat-title" style="font-size: 15px; color: var(--text-muted); text-align: center; margin-bottom: 5px;">Опции чата</h3>
+            <h3 id="context-chat-title" style="font-size:15px; text-align:center;">Опции чата</h3>
             <button onclick="handlePinChat()">📌 Закрепить / Открепить</button>
-            <button onclick="handleRenameChat()">✏️ Переименовать чат</button>
+            <button onclick="handleRenameChat()">✏️ Переименовать</button>
             <button class="danger" onclick="handleDeleteChat()">🗑️ Удалить сессию</button>
             <button class="close" onclick="closeContextModal()">Отмена</button>
         </div>
     </div>
 
     <script>
-        const API_KEY = "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";
-        
+        const DEFAULT_API_KEY = "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";
+
+        function getApiKey() {
+            return appState.settings.customApiKey?.trim() || DEFAULT_API_KEY;
+        }
         const ALL_MODELS = [
             "google/gemini-2.5-flash:free",
             "meta-llama/llama-3-8b-instruct:free",
             "deepseek/deepseek-chat",
             "nousresearch/hermes-3-llama-3.1-405b:free"
         ];
-
         const BRAND_MAP = {
             "auto": "ouGPT 1-Auto",
             "google/gemini-2.5-flash:free": "ouGPT 1-Flash",
@@ -321,15 +327,13 @@
         };
 
         let appState = {
-            chats: JSON.parse(localStorage.getItem('ouGPT_chats_v2')) || [],
-            settings: JSON.parse(localStorage.getItem('ouGPT_settings_v2')) || { name: 'Пользователь', isUltimate: false, selectedModel: 'auto' },
+            chats: JSON.parse(localStorage.getItem('ouGPT_chats_v3')) || [],
+            settings: JSON.parse(localStorage.getItem('ouGPT_settings_v2')) || { name: 'Пользователь', isUltimate: false, selectedModel: 'auto', customApiKey: '' },
             activeChatId: null
         };
 
         let attachedFiles = [];
         let selectedContextChatId = null;
-        let pressTimer = null;
-
         const elements = {
             chat: document.getElementById('chat'),
             prompt: document.getElementById('prompt'),
@@ -341,38 +345,49 @@
 
         window.onload = () => {
             marked.setOptions({ breaks: true });
-            updateUI(); renderChatList(); startNewChat();
+            updateUI();
+            renderChatList();
+            startNewChat();
+
+            if (!localStorage.getItem('ouGPT_welcome_seen')) {
+                document.getElementById('welcome-modal').classList.add('active');
+            }
         };
-
         function getBrandName(modelKey) { return BRAND_MAP[modelKey] || "ouGPT 1-Engine"; }
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('active');
-            document.getElementById('sidebar-overlay').classList.toggle('active');
-        }
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('active'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
 
-        elements.prompt.addEventListener('input', function() {
-            this.style.height = '48px'; this.style.height = (this.scrollHeight) + 'px';
-        });
-        elements.prompt.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-        });
+        elements.prompt.addEventListener('input', function() { this.style.height = '48px'; this.style.height = (this.scrollHeight) + 'px'; });
 
-        /* === ВЛОЖЕНИЯ И ФАЙЛЫ === */
         function triggerFileInput() { elements.fileInput.click(); }
         
+        // Чтение файлов, включая DOCX и Фотографии
         function handleFileSelect(e) {
             const files = Array.from(e.target.files);
             files.forEach(file => {
-                const reader = new FileReader();
+                const name = file.name;
+                const ext = name.split('.').pop().toLowerCase();
+
                 if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
                     reader.onload = (evt) => {
-                        attachedFiles.push({ type: 'image', name: file.name, data: evt.target.result });
+                        attachedFiles.push({ type: 'image', name: name, data: evt.target.result });
                         renderFilePreviews();
                     };
                     reader.readAsDataURL(file);
-                } else {
+                } else if (ext === 'docx') {
+                    const reader = new FileReader();
                     reader.onload = (evt) => {
-                        attachedFiles.push({ type: 'text', name: file.name, data: evt.target.result });
+                        mammoth.extractRawText({ arrayBuffer: evt.target.result })
+                            .then(result => {
+                                attachedFiles.push({ type: 'text', name: name, data: result.value });
+                                renderFilePreviews();
+                            }).catch(() => alert('Ошибка чтения файла DOCX'));
+                    };
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        attachedFiles.push({ type: 'text', name: name, data: evt.target.result });
                         renderFilePreviews();
                     };
                     reader.readAsText(file);
@@ -383,113 +398,58 @@
 
         function renderFilePreviews() {
             elements.filePreviews.innerHTML = '';
-            attachedFiles.forEach((file, index) => {
+            attachedFiles.forEach((file, idx) => {
                 const chip = document.createElement('div');
                 chip.className = 'preview-chip';
-                chip.innerHTML = `
-                    <span>${file.type === 'image' ? '🖼️' : '📄'} ${file.name.slice(0,15)}</span>
-                    <span class="remove" onclick="removeFile(${index})">×</span>
-                `;
+                chip.innerHTML = `<span>${file.type === 'image' ? '🖼️' : '📄'} ${file.name.slice(0,12)}</span><span class="remove" onclick="removeFile(${idx})">×</span>`;
                 elements.filePreviews.appendChild(chip);
             });
         }
+        function removeFile(idx) { attachedFiles.splice(idx, 1); renderFilePreviews(); }
 
-        function removeFile(index) {
-            attachedFiles.splice(index, 1);
-            renderFilePreviews();
-        }
+        function startNewChat() { appState.activeChatId = null; elements.chat.innerHTML = ''; elements.chatTitle.textContent = 'Новый чат'; attachedFiles = []; renderFilePreviews(); }
+        function createChatObject(msg) { const n = { id: Date.now().toString(), title: msg.slice(0, 20) + "...", messages: [], pinned: false }; appState.chats.unshift(n); appState.activeChatId = n.id; saveData(); return n; }
 
-        /* === УПРАВЛЕНИЕ СЕССИЯМИ === */
-        function startNewChat() {
-            appState.activeChatId = null; elements.chat.innerHTML = ''; elements.chatTitle.textContent = 'Новый чат';
-            document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
-            attachedFiles = []; renderFilePreviews();
-            if(window.innerWidth < 768 && document.getElementById('sidebar').classList.contains('active')) toggleSidebar();
-        }
-
-        function createChatObject(firstMsg) {
-            const newChat = { id: Date.now().toString(), title: firstMsg.slice(0, 20) + "...", messages: [], pinned: false };
-            appState.chats.unshift(newChat); appState.activeChatId = newChat.id;
-            saveData(); return newChat;
+        function renderChatList() {
+            elements.chatList.innerHTML = '';
+            [...appState.chats].sort((a,b)=>(b.pinned||0)-(a.pinned||0)).forEach(c => {
+                const d = document.createElement('div'); d.className = `chat-item ${c.id === appState.activeChatId ? 'active' : ''}`;
+                d.innerHTML = `<span>${c.title}</span>${c.pinned?'<span>📌</span>':''}`;
+                d.onclick = () => loadChat(c.id);
+                d.oncontextmenu = (e) => { e.preventDefault(); openContextModal(c.id); };
+                elements.chatList.appendChild(d);
+            });
         }
 
         function loadChat(id) {
             appState.activeChatId = id; elements.chat.innerHTML = '';
             const chat = appState.chats.find(c => c.id === id); elements.chatTitle.textContent = chat.title;
-            chat.messages.forEach(msg => {
-                if(msg.content && typeof msg.content === 'object') {
-                    // Восстановление истории с мультимодальными структурами
-                    let textSlice = msg.content.find(item => item.type === 'text')?.text || "Фото вложение";
-                    appendMessage(textSlice, msg.role === 'user' ? 'user' : 'ai');
+            chat.messages.forEach(m => {
+                if(m.role === 'user' && m.visualAttachments) {
+                    appendUserMessageWithFiles(m.rawText || '', m.visualAttachments);
                 } else {
-                    appendMessage(msg.content || '', msg.role === 'user' ? 'user' : 'ai');
+                    let text = typeof m.content === 'object' ? m.content[0]?.text : m.content;
+                    appendMessage(text || '', m.role);
                 }
             });
-            renderChatList(); if(window.innerWidth < 768) toggleSidebar();
+            if(window.innerWidth < 768) toggleSidebar();
         }
 
-        function renderChatList() {
-            elements.chatList.innerHTML = '';
-            const sortedChats = [...appState.chats].sort((a, b) => (b.pinned || 0) - (a.pinned || 0));
-            sortedChats.forEach(chat => {
-                const div = document.createElement('div');
-                div.className = `chat-item ${chat.id === appState.activeChatId ? 'active' : ''}`;
-                const titleSpan = document.createElement('span');
-                titleSpan.textContent = chat.title;
-                div.appendChild(titleSpan);
-                if (chat.pinned) {
-                    const pinIcon = document.createElement('span');
-                    pinIcon.className = 'chat-pin-icon'; pinIcon.textContent = '📌';
-                    div.appendChild(pinIcon);
-                }
-                div.onclick = () => loadChat(chat.id);
-                div.oncontextmenu = (e) => { e.preventDefault(); openContextModal(chat.id); };
-                div.addEventListener('touchstart', (e) => { pressTimer = setTimeout(() => { openContextModal(chat.id); }, 600); }, { passive: true });
-                div.addEventListener('touchend', () => { clearTimeout(pressTimer); });
-                elements.chatList.appendChild(div);
-            });
-        }
-
-        function openContextModal(chatId) {
-            selectedContextChatId = chatId;
-            const chat = appState.chats.find(c => c.id === chatId);
-            document.getElementById('context-chat-title').textContent = `Чат: "${chat.title}"`;
-            document.getElementById('context-modal').classList.add('active');
-        }
+        function openContextModal(id) { selectedContextChatId = id; document.getElementById('context-modal').classList.add('active'); }
         function closeContextModal() { document.getElementById('context-modal').classList.remove('active'); }
-        function handlePinChat() { const chat = appState.chats.find(c => c.id === selectedContextChatId); if (chat) { chat.pinned = !chat.pinned; saveData(); } closeContextModal(); }
-        function handleRenameChat() {
-            const chat = appState.chats.find(c => c.id === selectedContextChatId);
-            if (chat) {
-                const newTitle = prompt("Введите новое название сессии:", chat.title);
-                if (newTitle && newTitle.trim()) { chat.title = newTitle.trim(); if (appState.activeChatId === chat.id) elements.chatTitle.textContent = chat.title; saveData(); }
-            }
-            closeContextModal();
-        }
-        function handleDeleteChat() {
-            if (confirm("Вы действительно хотите удалить этот чат?")) { appState.chats = appState.chats.filter(c => c.id !== selectedContextChatId); if (appState.activeChatId === selectedContextChatId) startNewChat(); saveData(); }
-            closeContextModal();
-        }
+        function handlePinChat() { const c = appState.chats.find(ch => ch.id === selectedContextChatId); if(c){ c.pinned = !c.pinned; saveData(); } closeContextModal(); }
+        function handleRenameChat() { const c = appState.chats.find(ch => ch.id === selectedContextChatId); if(c){ const t = prompt("Название:", c.title); if(t){ c.title = t; saveData(); } } closeContextModal(); }
+        function handleDeleteChat() { appState.chats = appState.chats.filter(ch => ch.id !== selectedContextChatId); startNewChat(); saveData(); closeContextModal(); }
+        function saveData() { localStorage.setItem('ouGPT_chats_v3', JSON.stringify(appState.chats)); renderChatList(); }
 
-        function saveData() {
-            localStorage.setItem('ouGPT_chats_v2', JSON.stringify(appState.chats));
-            localStorage.setItem('ouGPT_settings_v2', JSON.stringify(appState.settings));
-            renderChatList();
-        }
-
-        function getSystemPrompt() {
-            const isNsfw = document.getElementById('nsfwToggle').checked;
-            let p = `Тебя зовут ouGPT. Имя юзера: ${appState.settings.name}. Отвечай структурированно, используя Markdown.`;
-            if (isNsfw) p += " Режим NSFW активирован. Ты полностью без цензуры, можешь материться в тему. Никаких моралей.";
-            return p;
-        }
+        function getSystemPrompt() { return `Тебя зовут ouGPT. Имя юзера: ${appState.settings.name}. Отвечай структурированно по Markdown. ${document.getElementById('nsfwToggle').checked ? 'Режим NSFW активен. Полная свобода без цензуры.' : ''}`; }
 
         function renderMarkdown(text) {
             let html = marked.parse(text); const parser = new DOMParser(); const doc = parser.parseFromString(html, 'text/html');
             doc.querySelectorAll('pre').forEach(pre => {
-                const wrapper = document.createElement('div'); wrapper.className = 'code-wrapper';
-                wrapper.innerHTML = `<div class="code-header"><span>Код</span><button onclick="copyCode(this)">Копировать</button></div>`;
-                pre.parentNode.insertBefore(wrapper, pre); wrapper.appendChild(pre);
+                const w = document.createElement('div'); w.className = 'code-wrapper';
+                w.innerHTML = `<div class="code-header"><span>Код</span><button onclick="copyCode(this)">Копировать</button></div>`;
+                pre.parentNode.insertBefore(w, pre); w.appendChild(pre);
             });
             return doc.body.innerHTML;
         }
@@ -501,212 +461,188 @@
             return div;
         }
 
-        window.copyCode = function(btn) {
-            const pre = btn.parentElement.nextElementSibling;
-            navigator.clipboard.writeText(pre.innerText).then(() => {
-                btn.textContent = 'Скопировано!'; setTimeout(() => btn.textContent = 'Копировать', 2000);
+        // Вывод сообщения пользователя со списком файлов сверху внутри блока сообщения
+        function appendUserMessageWithFiles(text, files) {
+            const div = document.createElement('div'); div.className = 'message user';
+            let attachHtml = '<div class="msg-attachments">';
+            files.forEach(f => {
+                if(f.type === 'image') {
+                    attachHtml += `<div class="msg-file-badge"><img src="${f.data}"> ${f.name.slice(0,10)}</div>`;
+                } else {
+                    attachHtml += `<div class="msg-file-badge">📄 ${f.name.slice(0,10)}</div>`;
+                }
             });
-        };
+            attachHtml += '</div>';
+            div.innerHTML = attachHtml + `<div>${text.replace(/</g, "&lt;")}</div>`;
+            elements.chat.appendChild(div); elements.chat.scrollTop = elements.chat.scrollHeight;
+        }
 
-        /* === ОТПРАВКА И ГЕНЕРАЦИЯ === */
         async function sendMessage() {
             const text = elements.prompt.value.trim();
             if (!text && attachedFiles.length === 0) return;
 
-            let isFirst = !appState.activeChatId;
-            if (isFirst) createChatObject(text || "Вложения...");
+            if (!appState.activeChatId) createChatObject(text || "Вложения...");
             const currentChat = appState.chats.find(c => c.id === appState.activeChatId);
 
-            const isArtMode = document.getElementById('artModeToggle').checked;
-
-            // === 1. АРТ-РЕЖИМ (100% СТАБИЛЬНЫЙ ПРЕДЗАГРУЗЧИК С SHIMMER ЭФФЕКТОМ) ===
-            if (isArtMode) {
-                appendMessage(text || "Арт запрос", 'user');
+            if (document.getElementById('artModeToggle').checked) {
+                // Арт-режим
+                appendMessage(text || "Арт", 'user');
                 currentChat.messages.push({ role: "user", content: text });
                 elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
                 if (!appState.settings.isUltimate) {
-                    const aiDiv = appendMessage('❌ <b>Отказ в доступе:</b> Генерация картинок доступна только для тарифа <b>ULTIMATE</b>.', 'ai');
-                    currentChat.messages.push({ role: "assistant", content: "Ошибка доступа." });
-                    saveData(); return;
+                    appendMessage('❌ Доступно только на плане <b>ULTIMATE</b>.', 'ai'); return;
                 }
 
-                const uniqueId = Date.now();
-                const aiDiv = document.createElement('div');
-                aiDiv.className = 'message ai';
-                // Текст переливается серым цветом за счёт класса shimmer-text
-                aiDiv.innerHTML = `<div class="shimmer-text" id="shimmer-${uniqueId}">⏳ Генерация фото...</div>`;
-                elements.chat.appendChild(aiDiv);
-                elements.chat.scrollTop = elements.chat.scrollHeight;
+                const uid = Date.now();
+                const aiDiv = document.createElement('div'); aiDiv.className = 'message ai';
+                aiDiv.innerHTML = `<div class="shimmer-text" id="shimmer-${uid}">⏳ Генерация фото...</div>`;
+                elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
 
-                const cleanPrompt = encodeURIComponent(text.replace(/[^a-zA-Zа-яА-Я0-9\s]/g, ''));
-                const seed = Math.floor(Math.random() * 999999);
-                const targetImageUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=1024&height=1024&nologo=true&seed=${seed}`;
-
-                // Логика фоновой предзагрузки для исключения битых картинок
-                const imgPreloader = new Image();
-                imgPreloader.src = targetImageUrl;
-                imgPreloader.onload = () => {
-                    const shim = document.getElementById(`shimmer-${uniqueId}`);
-                    if(shim) shim.style.display = 'none';
-                    aiDiv.innerHTML = `<img src="${targetImageUrl}" alt="ouGPT Art">`;
-                    currentChat.messages.push({ role: "assistant", content: `![Art](${targetImageUrl})` });
-                    saveData();
-                    elements.chat.scrollTop = elements.chat.scrollHeight;
+                const target = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random()*9999)}`;
+                const img = new Image(); img.src = target;
+                img.onload = () => {
+                    aiDiv.innerHTML = `<img src="${target}">`;
+                    currentChat.messages.push({ role: "assistant", content: `![Art](${target})` }); saveData();
                 };
-                imgPreloader.onerror = () => {
-                    const shim = document.getElementById(`shimmer-${uniqueId}`);
-                    if(shim) {
-                        shim.classList.remove('shimmer-text');
-                        shim.style.color = '#ef4444';
-                        shim.textContent = '❌ Не удалось сгенерировать изображение. Повторите попытку.';
-                    }
-                };
+                img.onerror = () => { aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка генерации.</span>'; };
                 return;
             }
 
-            // === 2. СБОРДАННЫХ ДЛЯ ОБЫЧНОГО ЧАТА (Vision + Text Extraction) ===
-            let structuredPrompt = text;
-            let imagePayloads = [];
+            // Обычный чат
+            let promptBuild = text;
+            let images = [];
+            let currentAttachedInfo = JSON.parse(JSON.stringify(attachedFiles)); // копия для рендеринга истории
 
-            // Обрабатываем файлы в промпт
-            attachedFiles.forEach(file => {
-                if (file.type === 'text') {
-                    structuredPrompt += `\n\n[Анализ файла ${file.name}]:\n${file.data}`;
-                } else if (file.type === 'image') {
-                    imagePayloads.push(file.data);
-                }
+            attachedFiles.forEach(f => {
+                if(f.type === 'text') promptBuild += `\n\n[Содержимое файла ${f.name}]:\n${f.data}`;
+                else images.push(f.data);
             });
 
-            appendMessage(text || "Файловые вложения", 'user');
+            appendUserMessageWithFiles(text, currentAttachedInfo);
 
-            // Формируем сообщение для сохранения и отправки
-            let apiMessageContent;
-            if (imagePayloads.length > 0) {
-                apiMessageContent = [{ type: "text", text: structuredPrompt }];
-                imagePayloads.forEach(img => {
-                    apiMessageContent.push({ type: "image_url", image_url: { url: img } });
-                });
+            let payload;
+            if(images.length > 0) {
+                payload = [{ type: "text", text: promptBuild }];
+                images.forEach(img => payload.push({ type: "image_url", image_url: { url: img } }));
             } else {
-                apiMessageContent = structuredPrompt;
+                payload = promptBuild;
             }
 
-            currentChat.messages.push({ role: "user", content: apiMessageContent });
-            
-            // Чистим буферы ввода
+            currentChat.messages.push({ role: "user", content: payload, visualAttachments: currentAttachedInfo, rawText: text });
             attachedFiles = []; renderFilePreviews();
             elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
-            const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; aiDiv.textContent = 'Печатает...';
-            elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
+            const aiDiv = appendMessage('Печатает...', 'ai');
 
-            // Формируем чистую историю без перегрузок для контекста
-            const historyToSent = currentChat.messages.slice(-10).map(m => {
-                // Если запись сложная (мультимодальная), приводим в строку для сторонних моделей-каскадов
-                if(typeof m.content === 'object') {
-                    return { role: m.role, content: m.content.find(i => i.type === 'text')?.text || "Фото" };
-                }
+            const history = currentChat.messages.slice(-10).map(m => {
+                if(typeof m.content === 'object') return { role: m.role, content: m.content[0]?.text || "Медиафайл" };
                 return { role: m.role, content: m.content };
             });
 
-            const fullMessages = [{ role: "system", content: getSystemPrompt() }, ...historyToSent];
-
-            let userModelChoice = appState.settings.selectedModel || 'auto';
-            let modelsToTry = userModelChoice !== 'auto' && appState.settings.isUltimate ? [userModelChoice, ...ALL_MODELS.filter(m => m !== userModelChoice)] : [...ALL_MODELS];
-
+            let models = appState.settings.selectedModel !== 'auto' ? [appState.settings.selectedModel, ...ALL_MODELS] : [...ALL_MODELS];
             let success = false; let responseText = '';
 
-            // === ЦИКЛИЧЕСКИЙ КАСКАДНЫЙ СБРОС (АВТОМАТИЧЕСКАЯ ПОДМЕНА ЯДРА ПРИ ОШИБКЕ) ===
-            for (let targetModel of modelsToTry) {
-                if (success) break;
-                
-                document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(targetModel)}`;
-                
+            for (let model of models) {
+                if(success) break;
+                document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(model)}`;
                 try {
-                    // Для отправки фото на базовое работающее ядро
-                    let finalPayload = (imagePayloads.length > 0 && targetModel.includes('gemini')) ? apiMessageContent : fullMessages;
-                    let bodyData = { model: targetModel, temperature: 0.85, stream: true };
-                    
-                    if(imagePayloads.length > 0 && targetModel.includes('gemini')) {
-                        bodyData.messages = [{ role: "system", content: getSystemPrompt() }, { role: "user", content: finalPayload }];
-                    } else {
-                        bodyData.messages = fullMessages;
+                    let finalMessages = [{ role: "system", content: getSystemPrompt() }, ...history];
+                    if(images.length > 0 && model.includes('gemini')) {
+                        finalMessages = [{ role: "system", content: getSystemPrompt() }, { role: "user", content: payload }];
                     }
 
                     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${API_KEY}`,
-                            'HTTP-Referer': 'https://ougpt.local',
-                            'X-OpenRouter-Title': 'ouGPT Liquid'
-                        },
-                        body: JSON.stringify(bodyData)
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getApiKey()}` },
+                        body: JSON.stringify({ model: model, messages: finalMessages, temperature: 0.8, stream: true })
                     });
-
-                    if (!res.ok) throw new Error("Ядро занято");
-                    
+                    if(!res.ok) throw new Error();
                     success = true; aiDiv.textContent = '';
                     const reader = res.body.getReader(); const decoder = new TextDecoder();
-                    while (true) {
-                        const { done, value } = await reader.read(); if (done) break;
-                        const chunk = decoder.decode(value); const lines = chunk.split('\n');
-                        for (const line of lines) {
-                            if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+                    while(true) {
+                        const { done, value } = await reader.read(); if(done) break;
+                        const lines = decoder.decode(value).split('\n');
+                        for(let line of lines) {
+                            if(line.startsWith('data: ') && !line.includes('[DONE]')) {
                                 try {
-                                    const data = JSON.parse(line.slice(6)); const delta = data.choices[0]?.delta?.content;
-                                    if (delta) { responseText += delta; aiDiv.innerHTML = renderMarkdown(responseText); elements.chat.scrollTop = elements.chat.scrollHeight; }
-                                } catch(e) {}
+                                    const delta = JSON.parse(line.slice(6)).choices[0]?.delta?.content;
+                                    if(delta) { responseText += delta; aiDiv.innerHTML = renderMarkdown(responseText); elements.chat.scrollTop = elements.chat.scrollHeight; }
+                                } catch(e){}
                             }
                         }
                     }
-                } catch (e) { 
-                    console.warn(`Ядро ${targetModel} выдало сбой. Авто-переключение на фазу ниже...`);
-                }
+                } catch(e){ console.warn("Смена ядра..."); }
             }
-
-            if (!success) { 
-                aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка: Все модули ouGPT перегружены. Попробуйте отправить запрос повторно.</span>'; 
-                return; 
-            }
-            currentChat.messages.push({ role: "assistant", content: responseText }); saveData();
+            if(!success) aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка сети.</span>';
+            else { currentChat.messages.push({ role: "assistant", content: responseText }); saveData(); }
         }
 
         function updateUI() {
             document.getElementById('display-name').textContent = appState.settings.name;
-            const modelSelect = document.getElementById('input-model');
+            const sel = document.getElementById('input-model');
             if (appState.settings.isUltimate) {
                 document.getElementById('display-status').textContent = 'Ultimate План';
                 document.getElementById('display-status').style.color = '#d946ef';
                 document.getElementById('ultimate-badge').style.display = 'block';
-                modelSelect.disabled = false;
+                sel.disabled = false;
             } else {
                 document.getElementById('display-status').textContent = 'Базовый план';
-                document.getElementById('display-status').style.color = 'var(--text-muted)';
                 document.getElementById('ultimate-badge').style.display = 'none';
-                modelSelect.value = 'auto'; appState.settings.selectedModel = 'auto';
-                modelSelect.disabled = true;
+                sel.value = 'auto'; sel.disabled = true;
             }
-            document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(appState.settings.selectedModel)}`;
         }
-
         function openModal() {
             document.getElementById('input-name').value = appState.settings.name;
-            document.getElementById('input-promo').value = '';
-            document.getElementById('input-model').value = appState.settings.selectedModel || 'auto';
+            document.getElementById('input-api-key').value = appState.settings.customApiKey || '';
             document.getElementById('account-modal').classList.add('active');
         }
         function closeModal() { document.getElementById('account-modal').classList.remove('active'); }
-
         function saveSettings() {
             appState.settings.name = document.getElementById('input-name').value.trim() || 'User';
-            if (document.getElementById('input-promo').value.trim() === 'OUGPTTEST') {
-                appState.settings.isUltimate = true;
-                alert('Режим Ultimate успешно активирован в вашей системе!');
-            }
-            appState.settings.selectedModel = appState.settings.isUltimate ? document.getElementById('input-model').value : 'auto';
-            saveData(); updateUI(); closeModal();
+            if(document.getElementById('input-promo').value === 'OUGPTTEST') appState.settings.isUltimate = true;
+            appState.settings.selectedModel = document.getElementById('input-model').value;
+            appState.settings.customApiKey = document.getElementById('input-api-key').value.trim();
+            localStorage.setItem('ouGPT_settings_v2', JSON.stringify(appState.settings));
+            updateUI();
+            closeModal();
         }
+
+        function saveWelcomeSettings() {
+            const key = document.getElementById('welcome-api-key').value.trim();
+
+            if (key) {
+                appState.settings.customApiKey = key;
+                localStorage.setItem('ouGPT_settings_v2', JSON.stringify(appState.settings));
+            }
+
+            localStorage.setItem('ouGPT_welcome_seen', '1');
+            document.getElementById('welcome-modal').classList.remove('active');
+        }
+
     </script>
+
+    <div id="welcome-modal" class="modal-overlay">
+        <div class="modal glass" style="width: 360px;">
+            <h3>Добро пожаловать в ouGPT</h3>
+            <div style="font-size:13px; line-height:1.6; color: var(--text-muted);">
+                <p>Ты можешь использовать встроенный OpenRouter ключ или вставить свой собственный.</p>
+                <br>
+                <p><b>Как получить ключ:</b></p>
+                <p>1. Зарегистрируйся на OpenRouter</p>
+                <p>2. Открой раздел Keys</p>
+                <p>3. Создай API Key и вставь его ниже</p>
+                <br>
+                <p>Ссылки:</p>
+                <p>
+                    🔗 <a href="https://openrouter.ai" target="_blank" style="color:#c084fc;">openrouter.ai</a><br>
+                    🔑 <a href="https://openrouter.ai/keys" target="_blank" style="color:#c084fc;">openrouter.ai/keys</a>
+                </p>
+            </div>
+            <input type="text" id="welcome-api-key" placeholder="sk-or-v1-... (необязательно)">
+            <button onclick="saveWelcomeSettings()">Продолжить</button>
+        </div>
+    </div>
+
 </body>
 </html>
