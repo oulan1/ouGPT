@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ouGPT Liquid Purple</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://js.puter.com/v2/"></script>
     <style>
         /* === ПЕРЕМЕННЫЕ И БАЗА === */
         :root {
@@ -231,7 +230,7 @@
                     <span style="color: #d946ef; font-weight: 500;">Арт-режим</span>
                 </div>
             </div>
-            <span id="model-indicator" style="font-size: 12px; color: var(--text-muted);">Модель: Auto</span>
+            <span id="model-indicator" style="font-size: 12px; color: var(--text-muted);">Модель: ouGPT 1-Auto</span>
         </div>
     </div>
 
@@ -241,9 +240,9 @@
             <input type="text" id="input-name" placeholder="Твое имя">
             <input type="text" id="input-promo" placeholder="Промокод">
             
-            <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Выбор модели (Только Ultimate):</label>
+            <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Выбор ядра (Только Ultimate):</label>
             <select id="input-model">
-                <option value="auto">🤖 Автовыбор (Каскад обхода ошибок)</option>
+                <option value="auto">🤖 ouGPT 1-Auto (Каскад нейросетей)</option>
                 <option value="google/gemini-2.5-flash:free">ouGPT 1-Flash</option>
                 <option value="meta-llama/llama-3-8b-instruct:free">ouGPT 1-8B</option>
                 <option value="deepseek/deepseek-chat">ouGPT 1-Deep</option>
@@ -275,6 +274,15 @@
             "nousresearch/hermes-3-llama-3.1-405b:free"
         ];
 
+        // Маппинг для 100% скрытия сторонних названий под твой личный бренд
+        const BRAND_MAP = {
+            "auto": "ouGPT 1-Auto",
+            "google/gemini-2.5-flash:free": "ouGPT 1-Flash",
+            "meta-llama/llama-3-8b-instruct:free": "ouGPT 1-8B",
+            "deepseek/deepseek-chat": "ouGPT 1-Deep",
+            "nousresearch/hermes-3-llama-3.1-405b:free": "ouGPT 1-Ultimate"
+        };
+
         let appState = {
             chats: JSON.parse(localStorage.getItem('ouGPT_chats_v2')) || [],
             settings: JSON.parse(localStorage.getItem('ouGPT_settings_v2')) || { name: 'Пользователь', isUltimate: false, selectedModel: 'auto' },
@@ -295,6 +303,10 @@
             marked.setOptions({ breaks: true });
             updateUI(); renderChatList(); startNewChat();
         };
+
+        function getBrandName(modelKey) {
+            return BRAND_MAP[modelKey] || "ouGPT 1-Engine";
+        }
 
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('active');
@@ -324,7 +336,13 @@
         function loadChat(id) {
             appState.activeChatId = id; elements.chat.innerHTML = '';
             const chat = appState.chats.find(c => c.id === id); elements.chatTitle.textContent = chat.title;
-            chat.messages.forEach(msg => appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai'));
+            chat.messages.forEach(msg => {
+                if (msg.content.startsWith('![Art]')) {
+                    appendArtMessage(msg.content, msg.role === 'user' ? 'user' : 'ai');
+                } else {
+                    appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai');
+                }
+            });
             renderChatList(); if(window.innerWidth < 768) toggleSidebar();
         }
 
@@ -419,6 +437,12 @@
             return div;
         }
 
+        function appendArtMessage(mdText, role) {
+            const div = document.createElement('div'); div.className = `message ${role}`;
+            div.innerHTML = renderMarkdown(mdText);
+            elements.chat.appendChild(div); elements.chat.scrollTop = elements.chat.scrollHeight;
+        }
+
         window.copyCode = function(btn) {
             const pre = btn.parentElement.nextElementSibling;
             navigator.clipboard.writeText(pre.innerText).then(() => {
@@ -436,6 +460,7 @@
 
             const isArtMode = document.getElementById('artModeToggle').checked;
 
+            // === АРТ-РЕЖИМ (100% РАБОЧАЯ ГЕНЕРАЦИЯ КАРТИНКАМИ С ОБХОДОМ КЭША) ===
             if (isArtMode) {
                 appendMessage(text, 'user'); 
                 currentChat.messages.push({ role: "user", content: text });
@@ -444,29 +469,35 @@
 
                 if (!appState.settings.isUltimate) {
                     const aiDiv = document.createElement('div'); aiDiv.className = 'message ai';
-                    aiDiv.innerHTML = '❌ <b>Отказ в доступе:</b> Генерация картинок только для <b>ULTIMATE</b>.';
+                    aiDiv.innerHTML = '❌ <b>Отказ в доступе:</b> Генерация картинок доступна только для тарифа <b>ULTIMATE</b>.';
                     elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
                     currentChat.messages.push({ role: "assistant", content: "Ошибка доступа." });
                     saveData(); return;
                 }
 
                 const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; 
-                aiDiv.innerHTML = '<i>Генерирую изображение... 🎨</i>';
+                aiDiv.innerHTML = '<i>Генерирую изображение вашей мысли... 🎨</i>';
                 elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
 
                 try {
+                    // Генерируем уникальный seed через временную метку и случайные числа, убирая логотип
+                    const uniqueSeed = Date.now() + Math.floor(Math.random() * 5000);
                     const encodedPrompt = encodeURIComponent(text);
-                    const imageUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
-                    const mdImage = `![Art](${imageUrl})`;
+                    const imageUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${uniqueSeed}`;
                     
+                    const mdImage = `![Art](${imageUrl})`;
                     currentChat.messages.push({ role: "assistant", content: mdImage });
-                    aiDiv.innerHTML = renderMarkdown(mdImage); saveData();
+                    
+                    // Отрисовываем картинку прямо в созданный блок
+                    aiDiv.innerHTML = renderMarkdown(mdImage); 
+                    saveData();
                 } catch (err) {
-                    aiDiv.innerHTML = '<span style="color:#ef4444;">Не удалось сгенерировать изображение.</span>';
+                    aiDiv.innerHTML = '<span style="color:#ef4444;">Не удалось сгенерировать изображение. Повторите попытку.</span>';
                 }
                 return;
             }
 
+            // === ОБЫЧНЫЙ ТЕКСТОВЫЙ ЧАТ (C КАСКАДОМ И РЕБРЕНДИНГОМ) ===
             appendMessage(text, 'user'); currentChat.messages.push({ role: "user", content: text });
             elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
@@ -483,7 +514,9 @@
 
             for (let targetModel of modelsToTry) {
                 if (success) break;
-                document.getElementById('model-indicator').textContent = `Модель: ${targetModel.split('/').pop().replace(':free', '')}`;
+                
+                // РЕБРЕНДИНГ: Подменяем надпись в нижнем углу на твою фирменную
+                document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(targetModel)}`;
                 
                 try {
                     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -513,10 +546,10 @@
                             }
                         }
                     }
-                } catch (e) { console.error("Сбой модели:", targetModel); }
+                } catch (e) { console.error("Сбой внутреннего ядра:", targetModel); }
             }
 
-            if (!success) { aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка: Все доступные ИИ-серверы перегружены.</span>'; return; }
+            if (!success) { aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка: Модули ouGPT перегружены. Попробуйте позже.</span>'; return; }
             currentChat.messages.push({ role: "assistant", content: responseText }); saveData();
         }
 
@@ -535,7 +568,8 @@
                 modelSelect.value = 'auto'; appState.settings.selectedModel = 'auto';
                 modelSelect.disabled = true;
             }
-            document.getElementById('model-indicator').textContent = `Модель: ${appState.settings.selectedModel === 'auto' ? 'Auto' : appState.settings.selectedModel.split('/').pop().replace(':free', '')}`;
+            // Полное брендирование индикатора при старте или смене настроек
+            document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(appState.settings.selectedModel)}`;
         }
 
         function openModal() {
@@ -551,7 +585,7 @@
             appState.settings.name = document.getElementById('input-name').value.trim() || 'User';
             if (document.getElementById('input-promo').value.trim() === 'OUGPTTEST') {
                 appState.settings.isUltimate = true;
-                alert('Ultimate активирован!');
+                alert('Режим Ultimate успешно активирован в вашей системе!');
             }
             appState.settings.selectedModel = appState.settings.isUltimate ? document.getElementById('input-model').value : 'auto';
             saveData(); updateUI(); closeModal();
