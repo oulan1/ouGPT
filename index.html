@@ -23,7 +23,7 @@
         body {
             background: radial-gradient(circle at 50% 0%, #1e0a32, #05000a 80%);
             color: var(--text-main);
-            height: 100dvh; /* Динамический замер высоты под мобилки */
+            height: 100dvh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -84,7 +84,7 @@
             background: rgba(255, 255, 255, 0.03); border: 1px solid transparent;
             font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             transition: 0.2s; display: flex; justify-content: space-between; align-items: center;
-            -webkit-touch-callout: none; /* Отключаем системное меню на iOS */
+            -webkit-touch-callout: none;
         }
         .chat-item:hover { background: rgba(255, 255, 255, 0.08); }
         .chat-item.active { background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.4); }
@@ -121,7 +121,7 @@
 
         /* === ВВОД === */
         #input-area { 
-            padding: 15px 15px calc(15px + env(safe-area-inset-bottom)); /* Фикс наплыва системных панелей */
+            padding: 15px 15px calc(15px + env(safe-area-inset-bottom));
             border-top: 1px solid var(--glass-border); z-index: 5; 
         }
         .input-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
@@ -163,7 +163,7 @@
         .code-header button:hover { color: #fff; }
         .code-wrapper pre { padding: 15px; overflow-x: auto; font-family: monospace; font-size: 14px; color: #e2e8f0; }
 
-        /* МОДАЛКИ ГЛУБОКИЕ */
+        /* МОДАЛКИ */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; pointer-events: none; transition: 0.3s; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         .modal { width: 320px; padding: 25px; border-radius: 20px; display: flex; flex-direction: column; gap: 15px; }
@@ -281,7 +281,7 @@
             activeChatId: null
         };
 
-        let selectedContextChatId = null; // Для хранения id долгого нажатия
+        let selectedContextChatId = null;
         let pressTimer = null;
 
         const elements = {
@@ -328,51 +328,30 @@
             renderChatList(); if(window.innerWidth < 768) toggleSidebar();
         }
 
-        // РЕНДЕР СПИСКА ЧАТОВ С СОРТИРОВКОЙ ПО ЗАКРЕПАМ И ХЕНДЛЕРАМИ НАЖАТИЯ
         function renderChatList() {
             elements.chatList.innerHTML = '';
-            
-            // Сортируем: сначала закрепленные (`pinned: true`)
             const sortedChats = [...appState.chats].sort((a, b) => (b.pinned || 0) - (a.pinned || 0));
-
             sortedChats.forEach(chat => {
                 const div = document.createElement('div');
                 div.className = `chat-item ${chat.id === appState.activeChatId ? 'active' : ''}`;
-                
-                // Текст названия чата
                 const titleSpan = document.createElement('span');
                 titleSpan.textContent = chat.title;
-                titleSpan.style.overflow = "hidden";
-                titleSpan.style.textOverflow = "ellipsis";
                 div.appendChild(titleSpan);
-
-                // Если закреплен, вешаем иконку
                 if (chat.pinned) {
                     const pinIcon = document.createElement('span');
                     pinIcon.className = 'chat-pin-icon';
                     pinIcon.textContent = '📌';
                     div.appendChild(pinIcon);
                 }
-
-                // Переход в чат при обычном клике
                 div.onclick = () => loadChat(chat.id);
-
-                // ЛОГИКА КОНТЕКСТНОГО МЕНЮ (ПК и Мобилки)
-                div.oncontextmenu = (e) => { e.preventDefault(); openContextModal(chat.id); }; // Правая кнопка мыши
-
-                // Touch события для долгого удержания (мобилки)
-                div.addEventListener('touchstart', (e) => {
-                    pressTimer = setTimeout(() => { openContextModal(chat.id); }, 600); // 0.6 сек удержания
-                }, { passive: true });
-
+                div.oncontextmenu = (e) => { e.preventDefault(); openContextModal(chat.id); };
+                div.addEventListener('touchstart', (e) => { pressTimer = setTimeout(() => { openContextModal(chat.id); }, 600); }, { passive: true });
                 div.addEventListener('touchend', () => { clearTimeout(pressTimer); });
                 div.addEventListener('touchmove', () => { clearTimeout(pressTimer); });
-
                 elements.chatList.appendChild(div);
             });
         }
 
-        // УПРАВЛЕНИЕ КОНТЕКСТНЫМ МЕНЮ ЧАТОВ
         function openContextModal(chatId) {
             selectedContextChatId = chatId;
             const chat = appState.chats.find(c => c.id === chatId);
@@ -384,10 +363,7 @@
 
         function handlePinChat() {
             const chat = appState.chats.find(c => c.id === selectedContextChatId);
-            if (chat) {
-                chat.pinned = !chat.pinned;
-                saveData();
-            }
+            if (chat) { chat.pinned = !chat.pinned; saveData(); }
             closeContextModal();
         }
 
@@ -450,7 +426,6 @@
             });
         };
 
-        // ОТПРАВКА СООБЩЕНИЙ С ЖЕСТКИМ РАЗДЕЛЕНИЕМ ПО ТУМБЛЕРУ АРТОВ
         async function sendMessage() {
             const text = elements.prompt.value.trim();
             if (!text) return;
@@ -459,38 +434,39 @@
             if (isFirst) createChatObject(text);
             const currentChat = appState.chats.find(c => c.id === appState.activeChatId);
 
-            // ПРОВЕРКА ПО ФИЗИЧЕСКОМУ ТУМБЛЕРУ
             const isArtMode = document.getElementById('artModeToggle').checked;
 
             if (isArtMode) {
-                appendMessage(text, 'user'); currentChat.messages.push({ role: "user", content: text });
-                elements.prompt.value = ''; elements.prompt.style.height = '48px';
+                appendMessage(text, 'user'); 
+                currentChat.messages.push({ role: "user", content: text });
+                elements.prompt.value = ''; 
+                elements.prompt.style.height = '48px';
 
-                // Заглушка, если юзер лезет генерить картинку без Ultimate плана
                 if (!appState.settings.isUltimate) {
                     const aiDiv = document.createElement('div'); aiDiv.className = 'message ai';
-                    aiDiv.innerHTML = '❌ <b>Отказ в доступе:</b> Создание картинок доступно только на тарифном плане <b>ULTIMATE</b>.<br>Активируй рабочий промокод в настройках аккаунта.';
+                    aiDiv.innerHTML = '❌ <b>Отказ в доступе:</b> Генерация картинок только для <b>ULTIMATE</b>.';
                     elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
-                    currentChat.messages.push({ role: "assistant", content: "Ошибка доступа: требуется ULTIMATE план." });
+                    currentChat.messages.push({ role: "assistant", content: "Ошибка доступа." });
                     saveData(); return;
                 }
 
-                // Генерация через API Puter.js
-                const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; aiDiv.innerHTML = '<i>Генерирую изображение по вашему промпту... 🎨</i>';
+                const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; 
+                aiDiv.innerHTML = '<i>Генерирую изображение... 🎨</i>';
                 elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
 
                 try {
-                    const imgEl = await puter.txt2img(text);
-                    const mdImage = `![Art](${imgEl.src})`;
+                    const encodedPrompt = encodeURIComponent(text);
+                    const imageUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+                    const mdImage = `![Art](${imageUrl})`;
+                    
                     currentChat.messages.push({ role: "assistant", content: mdImage });
                     aiDiv.innerHTML = renderMarkdown(mdImage); saveData();
                 } catch (err) {
-                    aiDiv.innerHTML = '<span style="color:#ef4444;">Не удалось сгенерировать изображение. Попробуйте изменить промпт.</span>';
+                    aiDiv.innerHTML = '<span style="color:#ef4444;">Не удалось сгенерировать изображение.</span>';
                 }
                 return;
             }
 
-            // ОБЫЧНЫЙ ТЕКСТОВЫЙ РЕЖИМ С КАСКАДОМ ОБХОДА ОШИБОК
             appendMessage(text, 'user'); currentChat.messages.push({ role: "user", content: text });
             elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
@@ -501,13 +477,7 @@
             const fullMessages = [{ role: "system", content: getSystemPrompt() }, ...historyToSent];
 
             let userModelChoice = appState.settings.selectedModel || 'auto';
-            let modelsToTry = [];
-
-            if (userModelChoice !== 'auto' && appState.settings.isUltimate) {
-                modelsToTry = [userModelChoice, ...ALL_MODELS.filter(m => m !== userModelChoice)];
-            } else {
-                modelsToTry = [...ALL_MODELS];
-            }
+            let modelsToTry = userModelChoice !== 'auto' && appState.settings.isUltimate ? [userModelChoice, ...ALL_MODELS.filter(m => m !== userModelChoice)] : [...ALL_MODELS];
 
             let success = false; let responseText = '';
 
@@ -524,49 +494,35 @@
                             'HTTP-Referer': 'https://ougpt.local',
                             'X-OpenRouter-Title': 'ouGPT Liquid'
                         },
-                        body: JSON.stringify({
-                            model: targetModel, messages: fullMessages, temperature: 0.85, stream: true
-                        })
+                        body: JSON.stringify({ model: targetModel, messages: fullMessages, temperature: 0.85, stream: true })
                     });
 
-                    if (!res.ok) continue; // Сервер лежит -> падаем на следующую модель в пуле
+                    if (!res.ok) continue;
                     
                     success = true; aiDiv.textContent = '';
                     const reader = res.body.getReader(); const decoder = new TextDecoder();
-
                     while (true) {
                         const { done, value } = await reader.read(); if (done) break;
                         const chunk = decoder.decode(value); const lines = chunk.split('\n');
-                        
                         for (const line of lines) {
                             if (line.startsWith('data: ') && !line.includes('[DONE]')) {
                                 try {
                                     const data = JSON.parse(line.slice(6)); const delta = data.choices[0]?.delta?.content;
-                                    if (delta) {
-                                        responseText += delta; aiDiv.innerHTML = renderMarkdown(responseText);
-                                        elements.chat.scrollTop = elements.chat.scrollHeight;
-                                    }
+                                    if (delta) { responseText += delta; aiDiv.innerHTML = renderMarkdown(responseText); elements.chat.scrollTop = elements.chat.scrollHeight; }
                                 } catch(e) {}
                             }
                         }
                     }
-                } catch (e) { console.error("Сбой модели, иду на замену:", targetModel); }
+                } catch (e) { console.error("Сбой модели:", targetModel); }
             }
 
-            if (!success) {
-                aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка: Все доступные ИИ-серверы перегружены. Попробуй позже.</span>';
-                return;
-            }
-
+            if (!success) { aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка: Все доступные ИИ-серверы перегружены.</span>'; return; }
             currentChat.messages.push({ role: "assistant", content: responseText }); saveData();
-            aiDiv.innerHTML = renderMarkdown(responseText);
         }
 
-        // НАСТРОЙКИ UI И ПОДПИСОК
         function updateUI() {
             document.getElementById('display-name').textContent = appState.settings.name;
             const modelSelect = document.getElementById('input-model');
-
             if (appState.settings.isUltimate) {
                 document.getElementById('display-status').textContent = 'Ultimate План';
                 document.getElementById('display-status').style.color = '#d946ef';
@@ -593,18 +549,11 @@
 
         function saveSettings() {
             appState.settings.name = document.getElementById('input-name').value.trim() || 'User';
-            
             if (document.getElementById('input-promo').value.trim() === 'OUGPTTEST') {
                 appState.settings.isUltimate = true;
-                alert('Ultimate активирован! Доступна ручная селекция моделей и генерация артов.');
+                alert('Ultimate активирован!');
             }
-            
-            if (appState.settings.isUltimate) {
-                appState.settings.selectedModel = document.getElementById('input-model').value;
-            } else {
-                appState.settings.selectedModel = 'auto';
-            }
-
+            appState.settings.selectedModel = appState.settings.isUltimate ? document.getElementById('input-model').value : 'auto';
             saveData(); updateUI(); closeModal();
         }
     </script>
