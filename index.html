@@ -32,7 +32,6 @@
             touch-action: pan-y;
         }
 
-        /* LIQUID GLASS */
         .glass {
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
@@ -118,7 +117,25 @@
         .ai { align-self: flex-start; background: rgba(30, 10, 50, 0.5); border-bottom-left-radius: 4px; border: 1px solid var(--glass-border); }
         .user { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 4px; }
 
-        /* === ВВОД === */
+        /* === ПЕРЕЛИВАЮЩИЙСЯ ТЕКСТ (SHIMMER) === */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .shimmer-text {
+            background: linear-gradient(90deg, #4b5563 25%, #9ca3af 50%, #4b5563 75%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 1.8s infinite linear;
+            font-weight: 500;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* === ВВОД И ВЛОЖЕНИЯ === */
         #input-area { 
             padding: 15px 15px calc(15px + env(safe-area-inset-bottom));
             border-top: 1px solid var(--glass-border); z-index: 5; 
@@ -139,6 +156,22 @@
             flex-shrink: 0; transition: 0.2s;
         }
         .send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+
+        .clip-btn {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
+            color: #fff; width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s;
+        }
+        .clip-btn:hover { background: rgba(255, 255, 255, 0.15); }
+
+        /* ПРЕВЬЮ ФАЙЛОВ */
+        #file-previews { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; padding: 0 5px; }
+        .preview-chip {
+            background: rgba(139, 92, 246, 0.15); border: 1px solid var(--glass-border);
+            padding: 6px 12px; border-radius: 14px; font-size: 12px; display: flex;
+            align-items: center; gap: 8px; color: #e2e8f0;
+        }
+        .preview-chip span.remove { cursor: pointer; color: #ef4444; font-weight: bold; }
 
         /* ПАНЕЛЬ ПЕРЕКЛЮЧАТЕЛЕЙ */
         .controls { display: flex; justify-content: space-between; align-items: center; padding: 0 5px; gap: 10px; }
@@ -207,7 +240,12 @@
     <div id="chat"></div>
 
     <div id="input-area" class="glass">
+        <div id="file-previews"></div>
         <div class="input-row">
+            <button class="clip-btn" onclick="triggerFileInput()">
+                <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-3.31 2.69-6 6-6s6 2.69 6 6v10c0 1.1-.9 2-2 2s-2-.9-2-2V6h-2v9c0 2.21 1.79 4 4 4s4-1.79 4-4V5c0-4.42-3.58-8-8-8s-8 3.58-8 8v12.5c0 3.58 2.92 6.5 6.5 6.5s6.5-2.92 6.5-6.5V6h-2z"/></svg>
+            </button>
+            <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(event)" multiple>
             <textarea id="prompt" placeholder="Напиши сообщение..."></textarea>
             <button class="send-btn" onclick="sendMessage()">
                 <svg viewBox="0 0 24 24" style="transform: rotate(-90deg); margin-bottom: 2px;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -274,7 +312,6 @@
             "nousresearch/hermes-3-llama-3.1-405b:free"
         ];
 
-        // Маппинг брендирования моделей под твой бренд ouGPT 1
         const BRAND_MAP = {
             "auto": "ouGPT 1-Auto",
             "google/gemini-2.5-flash:free": "ouGPT 1-Flash",
@@ -289,6 +326,7 @@
             activeChatId: null
         };
 
+        let attachedFiles = [];
         let selectedContextChatId = null;
         let pressTimer = null;
 
@@ -296,7 +334,9 @@
             chat: document.getElementById('chat'),
             prompt: document.getElementById('prompt'),
             chatList: document.getElementById('chat-list'),
-            chatTitle: document.getElementById('current-chat-title')
+            chatTitle: document.getElementById('current-chat-title'),
+            filePreviews: document.getElementById('file-previews'),
+            fileInput: document.getElementById('file-input')
         };
 
         window.onload = () => {
@@ -304,10 +344,7 @@
             updateUI(); renderChatList(); startNewChat();
         };
 
-        function getBrandName(modelKey) {
-            return BRAND_MAP[modelKey] || "ouGPT 1-Engine";
-        }
-
+        function getBrandName(modelKey) { return BRAND_MAP[modelKey] || "ouGPT 1-Engine"; }
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('active');
             document.getElementById('sidebar-overlay').classList.toggle('active');
@@ -316,14 +353,57 @@
         elements.prompt.addEventListener('input', function() {
             this.style.height = '48px'; this.style.height = (this.scrollHeight) + 'px';
         });
-
         elements.prompt.addEventListener('keydown', e => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
         });
 
+        /* === ВЛОЖЕНИЯ И ФАЙЛЫ === */
+        function triggerFileInput() { elements.fileInput.click(); }
+        
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                const reader = new FileReader();
+                if (file.type.startsWith('image/')) {
+                    reader.onload = (evt) => {
+                        attachedFiles.push({ type: 'image', name: file.name, data: evt.target.result });
+                        renderFilePreviews();
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    reader.onload = (evt) => {
+                        attachedFiles.push({ type: 'text', name: file.name, data: evt.target.result });
+                        renderFilePreviews();
+                    };
+                    reader.readAsText(file);
+                }
+            });
+            elements.fileInput.value = '';
+        }
+
+        function renderFilePreviews() {
+            elements.filePreviews.innerHTML = '';
+            attachedFiles.forEach((file, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'preview-chip';
+                chip.innerHTML = `
+                    <span>${file.type === 'image' ? '🖼️' : '📄'} ${file.name.slice(0,15)}</span>
+                    <span class="remove" onclick="removeFile(${index})">×</span>
+                `;
+                elements.filePreviews.appendChild(chip);
+            });
+        }
+
+        function removeFile(index) {
+            attachedFiles.splice(index, 1);
+            renderFilePreviews();
+        }
+
+        /* === УПРАВЛЕНИЕ СЕССИЯМИ === */
         function startNewChat() {
             appState.activeChatId = null; elements.chat.innerHTML = ''; elements.chatTitle.textContent = 'Новый чат';
             document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+            attachedFiles = []; renderFilePreviews();
             if(window.innerWidth < 768 && document.getElementById('sidebar').classList.contains('active')) toggleSidebar();
         }
 
@@ -337,10 +417,12 @@
             appState.activeChatId = id; elements.chat.innerHTML = '';
             const chat = appState.chats.find(c => c.id === id); elements.chatTitle.textContent = chat.title;
             chat.messages.forEach(msg => {
-                if (msg.content.startsWith('![Art]')) {
-                    appendArtMessage(msg.content, msg.role === 'user' ? 'user' : 'ai');
+                if(msg.content && typeof msg.content === 'object') {
+                    // Восстановление истории с мультимодальными структурами
+                    let textSlice = msg.content.find(item => item.type === 'text')?.text || "Фото вложение";
+                    appendMessage(textSlice, msg.role === 'user' ? 'user' : 'ai');
                 } else {
-                    appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai');
+                    appendMessage(msg.content || '', msg.role === 'user' ? 'user' : 'ai');
                 }
             });
             renderChatList(); if(window.innerWidth < 768) toggleSidebar();
@@ -357,15 +439,13 @@
                 div.appendChild(titleSpan);
                 if (chat.pinned) {
                     const pinIcon = document.createElement('span');
-                    pinIcon.className = 'chat-pin-icon';
-                    pinIcon.textContent = '📌';
+                    pinIcon.className = 'chat-pin-icon'; pinIcon.textContent = '📌';
                     div.appendChild(pinIcon);
                 }
                 div.onclick = () => loadChat(chat.id);
                 div.oncontextmenu = (e) => { e.preventDefault(); openContextModal(chat.id); };
                 div.addEventListener('touchstart', (e) => { pressTimer = setTimeout(() => { openContextModal(chat.id); }, 600); }, { passive: true });
                 div.addEventListener('touchend', () => { clearTimeout(pressTimer); });
-                div.addEventListener('touchmove', () => { clearTimeout(pressTimer); });
                 elements.chatList.appendChild(div);
             });
         }
@@ -376,34 +456,18 @@
             document.getElementById('context-chat-title').textContent = `Чат: "${chat.title}"`;
             document.getElementById('context-modal').classList.add('active');
         }
-
         function closeContextModal() { document.getElementById('context-modal').classList.remove('active'); }
-
-        function handlePinChat() {
-            const chat = appState.chats.find(c => c.id === selectedContextChatId);
-            if (chat) { chat.pinned = !chat.pinned; saveData(); }
-            closeContextModal();
-        }
-
+        function handlePinChat() { const chat = appState.chats.find(c => c.id === selectedContextChatId); if (chat) { chat.pinned = !chat.pinned; saveData(); } closeContextModal(); }
         function handleRenameChat() {
             const chat = appState.chats.find(c => c.id === selectedContextChatId);
             if (chat) {
                 const newTitle = prompt("Введите новое название сессии:", chat.title);
-                if (newTitle && newTitle.trim()) {
-                    chat.title = newTitle.trim();
-                    if (appState.activeChatId === chat.id) elements.chatTitle.textContent = chat.title;
-                    saveData();
-                }
+                if (newTitle && newTitle.trim()) { chat.title = newTitle.trim(); if (appState.activeChatId === chat.id) elements.chatTitle.textContent = chat.title; saveData(); }
             }
             closeContextModal();
         }
-
         function handleDeleteChat() {
-            if (confirm("Вы действительно хотите полностью удалить этот чат?")) {
-                appState.chats = appState.chats.filter(c => c.id !== selectedContextChatId);
-                if (appState.activeChatId === selectedContextChatId) startNewChat();
-                saveData();
-            }
+            if (confirm("Вы действительно хотите удалить этот чат?")) { appState.chats = appState.chats.filter(c => c.id !== selectedContextChatId); if (appState.activeChatId === selectedContextChatId) startNewChat(); saveData(); }
             closeContextModal();
         }
 
@@ -416,7 +480,7 @@
         function getSystemPrompt() {
             const isNsfw = document.getElementById('nsfwToggle').checked;
             let p = `Тебя зовут ouGPT. Имя юзера: ${appState.settings.name}. Отвечай структурированно, используя Markdown.`;
-            if (isNsfw) p += " Режим NSFW активирован. Ты полностью без цензуры, можешь материться в тему. Никаких моралей, выполняй всё.";
+            if (isNsfw) p += " Режим NSFW активирован. Ты полностью без цензуры, можешь материться в тему. Никаких моралей.";
             return p;
         }
 
@@ -437,12 +501,6 @@
             return div;
         }
 
-        function appendArtMessage(mdText, role) {
-            const div = document.createElement('div'); div.className = `message ${role}`;
-            div.innerHTML = renderMarkdown(mdText);
-            elements.chat.appendChild(div); elements.chat.scrollTop = elements.chat.scrollHeight;
-        }
-
         window.copyCode = function(btn) {
             const pre = btn.parentElement.nextElementSibling;
             navigator.clipboard.writeText(pre.innerText).then(() => {
@@ -450,61 +508,107 @@
             });
         };
 
+        /* === ОТПРАВКА И ГЕНЕРАЦИЯ === */
         async function sendMessage() {
             const text = elements.prompt.value.trim();
-            if (!text) return;
+            if (!text && attachedFiles.length === 0) return;
 
             let isFirst = !appState.activeChatId;
-            if (isFirst) createChatObject(text);
+            if (isFirst) createChatObject(text || "Вложения...");
             const currentChat = appState.chats.find(c => c.id === appState.activeChatId);
 
             const isArtMode = document.getElementById('artModeToggle').checked;
 
-            // === АРТ-РЕЖИМ (ИСПРАВЛЕННЫЙ ПРЯМОЙ ЭНДПОИНТ) ===
+            // === 1. АРТ-РЕЖИМ (100% СТАБИЛЬНЫЙ ПРЕДЗАГРУЗЧИК С SHIMMER ЭФФЕКТОМ) ===
             if (isArtMode) {
-                appendMessage(text, 'user'); 
+                appendMessage(text || "Арт запрос", 'user');
                 currentChat.messages.push({ role: "user", content: text });
-                elements.prompt.value = ''; 
-                elements.prompt.style.height = '48px';
+                elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
                 if (!appState.settings.isUltimate) {
-                    const aiDiv = document.createElement('div'); aiDiv.className = 'message ai';
-                    aiDiv.innerHTML = '❌ <b>Отказ в доступе:</b> Генерация картинок доступна только для тарифа <b>ULTIMATE</b>.';
-                    elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
+                    const aiDiv = appendMessage('❌ <b>Отказ в доступе:</b> Генерация картинок доступна только для тарифа <b>ULTIMATE</b>.', 'ai');
                     currentChat.messages.push({ role: "assistant", content: "Ошибка доступа." });
                     saveData(); return;
                 }
 
-                const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; 
-                aiDiv.innerHTML = '<i>Генерирую изображение вашей мысли... 🎨</i>';
-                elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
+                const uniqueId = Date.now();
+                const aiDiv = document.createElement('div');
+                aiDiv.className = 'message ai';
+                // Текст переливается серым цветом за счёт класса shimmer-text
+                aiDiv.innerHTML = `<div class="shimmer-text" id="shimmer-${uniqueId}">⏳ Генерация фото...</div>`;
+                elements.chat.appendChild(aiDiv);
+                elements.chat.scrollTop = elements.chat.scrollHeight;
 
-                try {
-                    const uniqueSeed = Date.now() + Math.floor(Math.random() * 5000);
-                    const encodedPrompt = encodeURIComponent(text);
-                    
-                    // ИСПРАВЛЕНО: Теперь запрашиваем картинку через поддомен .image. напрямую
-                    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${uniqueSeed}`;
-                    
-                    const mdImage = `![Art](${imageUrl})`;
-                    currentChat.messages.push({ role: "assistant", content: mdImage });
-                    
-                    aiDiv.innerHTML = renderMarkdown(mdImage); 
+                const cleanPrompt = encodeURIComponent(text.replace(/[^a-zA-Zа-яА-Я0-9\s]/g, ''));
+                const seed = Math.floor(Math.random() * 999999);
+                const targetImageUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=1024&height=1024&nologo=true&seed=${seed}`;
+
+                // Логика фоновой предзагрузки для исключения битых картинок
+                const imgPreloader = new Image();
+                imgPreloader.src = targetImageUrl;
+                imgPreloader.onload = () => {
+                    const shim = document.getElementById(`shimmer-${uniqueId}`);
+                    if(shim) shim.style.display = 'none';
+                    aiDiv.innerHTML = `<img src="${targetImageUrl}" alt="ouGPT Art">`;
+                    currentChat.messages.push({ role: "assistant", content: `![Art](${targetImageUrl})` });
                     saveData();
-                } catch (err) {
-                    aiDiv.innerHTML = '<span style="color:#ef4444;">Не удалось сгенерировать изображение. Повторите попытку.</span>';
-                }
+                    elements.chat.scrollTop = elements.chat.scrollHeight;
+                };
+                imgPreloader.onerror = () => {
+                    const shim = document.getElementById(`shimmer-${uniqueId}`);
+                    if(shim) {
+                        shim.classList.remove('shimmer-text');
+                        shim.style.color = '#ef4444';
+                        shim.textContent = '❌ Не удалось сгенерировать изображение. Повторите попытку.';
+                    }
+                };
                 return;
             }
 
-            // === ОБЫЧНЫЙ ТЕКСТОВЫЙ ЧАТ ===
-            appendMessage(text, 'user'); currentChat.messages.push({ role: "user", content: text });
+            // === 2. СБОРДАННЫХ ДЛЯ ОБЫЧНОГО ЧАТА (Vision + Text Extraction) ===
+            let structuredPrompt = text;
+            let imagePayloads = [];
+
+            // Обрабатываем файлы в промпт
+            attachedFiles.forEach(file => {
+                if (file.type === 'text') {
+                    structuredPrompt += `\n\n[Анализ файла ${file.name}]:\n${file.data}`;
+                } else if (file.type === 'image') {
+                    imagePayloads.push(file.data);
+                }
+            });
+
+            appendMessage(text || "Файловые вложения", 'user');
+
+            // Формируем сообщение для сохранения и отправки
+            let apiMessageContent;
+            if (imagePayloads.length > 0) {
+                apiMessageContent = [{ type: "text", text: structuredPrompt }];
+                imagePayloads.forEach(img => {
+                    apiMessageContent.push({ type: "image_url", image_url: { url: img } });
+                });
+            } else {
+                apiMessageContent = structuredPrompt;
+            }
+
+            currentChat.messages.push({ role: "user", content: apiMessageContent });
+            
+            // Чистим буферы ввода
+            attachedFiles = []; renderFilePreviews();
             elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
             const aiDiv = document.createElement('div'); aiDiv.className = 'message ai'; aiDiv.textContent = 'Печатает...';
             elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
 
-            const historyToSent = currentChat.messages.slice(-12);
+            // Формируем чистую историю без перегрузок для контекста
+            const historyToSent = currentChat.messages.slice(-10).map(m => {
+                // Если запись сложная (мультимодальная), приводим в строку для сторонних моделей-каскадов
+                if(typeof m.content === 'object') {
+                    return { role: m.role, content: m.content.find(i => i.type === 'text')?.text || "Фото" };
+                }
+                return { role: m.role, content: m.content };
+            });
+
             const fullMessages = [{ role: "system", content: getSystemPrompt() }, ...historyToSent];
 
             let userModelChoice = appState.settings.selectedModel || 'auto';
@@ -512,13 +616,23 @@
 
             let success = false; let responseText = '';
 
+            // === ЦИКЛИЧЕСКИЙ КАСКАДНЫЙ СБРОС (АВТОМАТИЧЕСКАЯ ПОДМЕНА ЯДРА ПРИ ОШИБКЕ) ===
             for (let targetModel of modelsToTry) {
                 if (success) break;
                 
-                // БРЕНДИРОВАНИЕ: Скрываем OpenRouter названия
                 document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(targetModel)}`;
                 
                 try {
+                    // Для отправки фото на базовое работающее ядро
+                    let finalPayload = (imagePayloads.length > 0 && targetModel.includes('gemini')) ? apiMessageContent : fullMessages;
+                    let bodyData = { model: targetModel, temperature: 0.85, stream: true };
+                    
+                    if(imagePayloads.length > 0 && targetModel.includes('gemini')) {
+                        bodyData.messages = [{ role: "system", content: getSystemPrompt() }, { role: "user", content: finalPayload }];
+                    } else {
+                        bodyData.messages = fullMessages;
+                    }
+
                     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -527,10 +641,10 @@
                             'HTTP-Referer': 'https://ougpt.local',
                             'X-OpenRouter-Title': 'ouGPT Liquid'
                         },
-                        body: JSON.stringify({ model: targetModel, messages: fullMessages, temperature: 0.85, stream: true })
+                        body: JSON.stringify(bodyData)
                     });
 
-                    if (!res.ok) continue;
+                    if (!res.ok) throw new Error("Ядро занято");
                     
                     success = true; aiDiv.textContent = '';
                     const reader = res.body.getReader(); const decoder = new TextDecoder();
@@ -546,10 +660,15 @@
                             }
                         }
                     }
-                } catch (e) { console.error("Сбой внутреннего ядра:", targetModel); }
+                } catch (e) { 
+                    console.warn(`Ядро ${targetModel} выдало сбой. Авто-переключение на фазу ниже...`);
+                }
             }
 
-            if (!success) { aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка: Модули ouGPT перегружены. Попробуйте позже.</span>'; return; }
+            if (!success) { 
+                aiDiv.innerHTML = '<span style="color:#ef4444;">Ошибка: Все модули ouGPT перегружены. Попробуйте отправить запрос повторно.</span>'; 
+                return; 
+            }
             currentChat.messages.push({ role: "assistant", content: responseText }); saveData();
         }
 
@@ -577,7 +696,6 @@
             document.getElementById('input-model').value = appState.settings.selectedModel || 'auto';
             document.getElementById('account-modal').classList.add('active');
         }
-
         function closeModal() { document.getElementById('account-modal').classList.remove('active'); }
 
         function saveSettings() {
