@@ -274,7 +274,7 @@
             "nousresearch/hermes-3-llama-3.1-405b:free"
         ];
 
-        // Маппинг для 100% скрытия сторонних названий под твой личный бренд
+        // Маппинг брендирования моделей под твой бренд ouGPT 1
         const BRAND_MAP = {
             "auto": "ouGPT 1-Auto",
             "google/gemini-2.5-flash:free": "ouGPT 1-Flash",
@@ -460,7 +460,7 @@
 
             const isArtMode = document.getElementById('artModeToggle').checked;
 
-            // === АРТ-РЕЖИМ (100% РАБОЧАЯ ГЕНЕРАЦИЯ КАРТИНКАМИ С ОБХОДОМ КЭША) ===
+            // === АРТ-РЕЖИМ (ИСПРАВЛЕННЫЙ ПРЯМОЙ ЭНДПОИНТ) ===
             if (isArtMode) {
                 appendMessage(text, 'user'); 
                 currentChat.messages.push({ role: "user", content: text });
@@ -480,15 +480,15 @@
                 elements.chat.appendChild(aiDiv); elements.chat.scrollTop = elements.chat.scrollHeight;
 
                 try {
-                    // Генерируем уникальный seed через временную метку и случайные числа, убирая логотип
                     const uniqueSeed = Date.now() + Math.floor(Math.random() * 5000);
                     const encodedPrompt = encodeURIComponent(text);
-                    const imageUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${uniqueSeed}`;
+                    
+                    // ИСПРАВЛЕНО: Теперь запрашиваем картинку через поддомен .image. напрямую
+                    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${uniqueSeed}`;
                     
                     const mdImage = `![Art](${imageUrl})`;
                     currentChat.messages.push({ role: "assistant", content: mdImage });
                     
-                    // Отрисовываем картинку прямо в созданный блок
                     aiDiv.innerHTML = renderMarkdown(mdImage); 
                     saveData();
                 } catch (err) {
@@ -497,7 +497,7 @@
                 return;
             }
 
-            // === ОБЫЧНЫЙ ТЕКСТОВЫЙ ЧАТ (C КАСКАДОМ И РЕБРЕНДИНГОМ) ===
+            // === ОБЫЧНЫЙ ТЕКСТОВЫЙ ЧАТ ===
             appendMessage(text, 'user'); currentChat.messages.push({ role: "user", content: text });
             elements.prompt.value = ''; elements.prompt.style.height = '48px';
 
@@ -515,7 +515,7 @@
             for (let targetModel of modelsToTry) {
                 if (success) break;
                 
-                // РЕБРЕНДИНГ: Подменяем надпись в нижнем углу на твою фирменную
+                // БРЕНДИРОВАНИЕ: Скрываем OpenRouter названия
                 document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(targetModel)}`;
                 
                 try {
@@ -568,7 +568,6 @@
                 modelSelect.value = 'auto'; appState.settings.selectedModel = 'auto';
                 modelSelect.disabled = true;
             }
-            // Полное брендирование индикатора при старте или смене настроек
             document.getElementById('model-indicator').textContent = `Модель: ${getBrandName(appState.settings.selectedModel)}`;
         }
 
